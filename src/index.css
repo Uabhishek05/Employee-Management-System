@@ -4,7 +4,9 @@
   color: #fff;
 }
 body{
-  background-color: black;
+  font-family: 'Inter', sans-serif;
+  @apply bg-gradient-to-br from-gray-900 via-black to-emerald-900;
+
 }
 
 
