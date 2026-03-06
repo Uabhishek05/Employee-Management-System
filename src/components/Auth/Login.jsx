@@ -71,8 +71,8 @@ const Login = () => {
         <div className='absolute right-4 top-24 h-72 w-72 rounded-full bg-fuchsia-500/10 blur-3xl' />
       </div>
 
-      <div className='relative mx-auto grid min-h-[calc(100vh-3rem)] max-w-7xl overflow-hidden rounded-3xl border border-white/15 bg-black/20 shadow-[0_30px_80px_rgba(0,0,0,0.55)] backdrop-blur-sm md:grid-cols-2'>
-        <section className='hidden flex-col justify-between border-r border-white/10 bg-[linear-gradient(140deg,rgba(6,28,67,0.55),rgba(7,87,76,0.4),rgba(2,15,40,0.5))] p-10 md:flex'>
+      <div className='relative mx-auto grid min-h-[calc(100vh-3rem)] max-w-7xl overflow-hidden rounded-3xl border border-white/15 bg-black/20 shadow-[0_30px_80px_rgba(0,0,0,0.55)] backdrop-blur-sm lg:grid-cols-2'>
+        <section className='hidden flex-col justify-between border-r border-white/10 bg-[linear-gradient(140deg,rgba(6,28,67,0.55),rgba(7,87,76,0.4),rgba(2,15,40,0.5))] p-10 lg:flex'>
           <div>
             <p className='mb-3 inline-block rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-emerald-100'>
               Employee Workspace
@@ -220,23 +220,21 @@ const Login = () => {
 
             <p className='mt-6 text-center text-xs text-white/60'>© 2026 Employee Management System</p>
 
-            {import.meta.env.DEV && (
-              <div className='mt-5 rounded-xl border border-white/15 bg-black/25 p-3'>
-                <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-200'>Dev Credentials</p>
-                <div className='grid grid-cols-1 gap-2'>
-                  {devCredentials.map((account) => (
-                    <button
-                      key={account.email}
-                      type='button'
-                      onClick={() => fillCredentials(account.email, account.password)}
-                      className='rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-left text-xs text-white/85 transition-all duration-300 hover:bg-white/10'
-                    >
-                      <span className='font-semibold text-emerald-200'>{account.role}:</span> {account.name}
-                    </button>
-                  ))}
-                </div>
+            <div className='mt-5 rounded-xl border border-white/15 bg-black/25 p-3'>
+              <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-200'>Credentials</p>
+              <div className='grid grid-cols-1 gap-2'>
+                {devCredentials.map((account) => (
+                  <button
+                    key={account.email}
+                    type='button'
+                    onClick={() => fillCredentials(account.email, account.password)}
+                    className='rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-left text-xs text-white/85 transition-all duration-300 hover:bg-white/10'
+                  >
+                    <span className='font-semibold text-emerald-200'>{account.role}:</span> {account.name}
+                  </button>
+                ))}
               </div>
-            )}
+            </div>
           </div>
         </section>
       </div>
