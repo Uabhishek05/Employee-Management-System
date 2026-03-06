@@ -1,8 +1,6 @@
-import React, { useState } from 'react'
+import React, { memo, useState } from 'react'
 
 const Header = ({
-  searchTerm = '',
-  onSearchChange = () => {},
   onLogout = () => {},
   onViewProfile = () => {},
   notifications = [],
@@ -12,7 +10,6 @@ const Header = ({
   profileName = 'Abhishek',
   profileInitial = 'A',
   notificationCount = 3,
-  searchPlaceholder = 'Search tasks or employees...',
 }) => {
   const [showMenu, setShowMenu] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
@@ -101,4 +98,4 @@ const Header = ({
   )
 }
 
-export default Header
+export default memo(Header)

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { memo } from 'react'
 
 const defaultActions = [
   { key: 'createTask', label: 'Create Task', accent: 'from-indigo-500 to-blue-500' },
@@ -29,4 +29,4 @@ const QuickActions = ({ actions = defaultActions, title = 'Quick Actions', activ
   )
 }
 
-export default QuickActions
+export default memo(QuickActions)

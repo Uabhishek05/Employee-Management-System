@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { memo, useState } from 'react'
 
 const defaultNavItems = [
   { key: 'dashboard', label: 'Dashboard', icon: '▦' },
@@ -82,4 +82,4 @@ const Sidebar = ({
   )
 }
 
-export default Sidebar
+export default memo(Sidebar)

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { memo } from 'react'
 
 const TaskListNumbers = ({ counts, activeFilter, onFilterChange }) => {
   const cards = [
@@ -45,4 +45,4 @@ const TaskListNumbers = ({ counts, activeFilter, onFilterChange }) => {
   )
 }
 
-export default TaskListNumbers
+export default memo(TaskListNumbers)

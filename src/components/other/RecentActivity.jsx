@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { memo } from 'react'
 
 const RecentActivity = ({ events }) => {
   return (
@@ -19,4 +19,4 @@ const RecentActivity = ({ events }) => {
   )
 }
 
-export default RecentActivity
+export default memo(RecentActivity)

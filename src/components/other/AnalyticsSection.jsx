@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { memo } from 'react'
 
 const AnalyticsSection = ({ distributionData, productivityData, performanceData = [], totalTasks }) => {
   const pieStops = distributionData.reduce(
@@ -81,4 +81,4 @@ const AnalyticsSection = ({ distributionData, productivityData, performanceData 
   )
 }
 
-export default AnalyticsSection
+export default memo(AnalyticsSection)

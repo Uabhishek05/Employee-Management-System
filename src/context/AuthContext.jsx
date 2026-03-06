@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import {
   CURRENT_USER_STORAGE_KEY,
   USERS_STORAGE_KEY,
@@ -6,7 +6,8 @@ import {
   initializeAppData,
 } from '../utlis/localStorage'
 
-const AuthContext = createContext(null)
+const AuthStateContext = createContext(null)
+const AuthActionsContext = createContext(null)
 
 const getStoredUser = () => {
   if (typeof window === 'undefined') return null
@@ -19,12 +20,13 @@ const getStoredUser = () => {
 }
 
 export const AuthProvider = ({ children }) => {
-  initializeAppData()
-
-  const [user, setUser] = useState(() => getStoredUser())
+  const [user, setUser] = useState(() => {
+    initializeAppData()
+    return getStoredUser()
+  })
   const [authError, setAuthError] = useState('')
 
-  const login = (email, password) => {
+  const login = useCallback((email, password) => {
     const users = getStoredArray(USERS_STORAGE_KEY, [])
     const matchedUser = users.find(
       (entry) =>
@@ -49,33 +51,60 @@ export const AuthProvider = ({ children }) => {
       window.localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(safeUser))
     }
     return true
-  }
+  }, [])
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setUser(null)
     setAuthError('')
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(CURRENT_USER_STORAGE_KEY)
     }
-  }
+  }, [])
 
-  const value = useMemo(
+  const stateValue = useMemo(
     () => ({
       user,
       authError,
+    }),
+    [authError, user]
+  )
+
+  const actionsValue = useMemo(
+    () => ({
       login,
       logout,
     }),
-    [user, authError]
+    [login, logout]
   )
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthStateContext.Provider value={stateValue}>
+      <AuthActionsContext.Provider value={actionsValue}>{children}</AuthActionsContext.Provider>
+    </AuthStateContext.Provider>
+  )
 }
 
-export const useAuth = () => {
-  const context = useContext(AuthContext)
+// eslint-disable-next-line react-refresh/only-export-components
+export const useAuthState = () => {
+  const context = useContext(AuthStateContext)
   if (!context) {
-    throw new Error('useAuth must be used inside AuthProvider')
+    throw new Error('useAuthState must be used inside AuthProvider')
   }
   return context
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const useAuthActions = () => {
+  const context = useContext(AuthActionsContext)
+  if (!context) {
+    throw new Error('useAuthActions must be used inside AuthProvider')
+  }
+  return context
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const useAuth = () => {
+  const state = useAuthState()
+  const actions = useAuthActions()
+  return useMemo(() => ({ ...state, ...actions }), [actions, state])
 }

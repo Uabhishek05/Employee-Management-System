@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EMS Project Documentation</title>
+  <style>
+    :root {
+      --text: #111827;
+      --muted: #4b5563;
+      --line: #d1d5db;
+      --brand: #0f766e;
+      --soft: #f3f4f6;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      line-height: 1.45;
+      background: white;
+    }
+
+    .page {
+      width: 100%;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 28px 34px 40px;
+    }
+
+    h1, h2, h3 { margin: 0 0 10px; }
+    h1 { font-size: 30px; color: var(--brand); }
+    h2 {
+      font-size: 23px;
+      border-bottom: 2px solid var(--line);
+      padding-bottom: 7px;
+      margin-top: 28px;
+    }
+    h3 { font-size: 17px; margin-top: 18px; }
+
+    p { margin: 0 0 10px; }
+
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+
+    .summary-box {
+      border: 1px solid var(--line);
+      background: var(--soft);
+      padding: 12px 14px;
+      border-radius: 8px;
+      margin: 14px 0 18px;
+    }
+
+    ul, ol { margin: 6px 0 10px 20px; }
+    li { margin: 4px 0; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 12px;
+      font-size: 14px;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px 9px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--soft);
+      font-weight: 600;
+    }
+
+    .section { page-break-inside: avoid; }
+    .page-break { page-break-before: always; }
+
+    .note {
+      font-size: 13px;
+      color: var(--muted);
+      border-left: 3px solid #9ca3af;
+      padding-left: 10px;
+      margin: 10px 0 14px;
+    }
+
+    code {
+      background: #eef2ff;
+      border: 1px solid #c7d2fe;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    @page {
+      size: A4;
+      margin: 12mm;
+    }
+
+    @media print {
+      .page {
+        max-width: none;
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Employee Management System (EMS)</h1>
+    <p class="meta">Project Documentation | Generated on 07 March 2026</p>
+
+    <div class="summary-box">
+      <p><strong>Purpose:</strong> This document explains the EMS project features with step-by-step workflows, organized separately for:</p>
+      <ol>
+        <li>Login Page</li>
+        <li>Admin Dashboard</li>
+        <li>Employee Dashboard</li>
+      </ol>
+      <p><strong>Tech Stack:</strong> React + Vite + Tailwind CSS + LocalStorage persistence.</p>
+    </div>
+
+    <h2>Project Overview</h2>
+    <ul>
+      <li>Role-based entry: after login, users are routed to admin or employee dashboard.</li>
+      <li>Data is persisted in browser <code>localStorage</code> using keys like <code>ems_users</code>, <code>ems_tasks</code>, and <code>ems_employees</code>.</li>
+      <li>Task statuses used across the system: <code>new</code>, <code>accepted</code>, <code>completed</code>, <code>failed</code>.</li>
+      <li>Global notifications are stored and shown from a shared notification center.</li>
+    </ul>
+
+    <h2>Default Demo Credentials</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Role</th>
+          <th>Email</th>
+          <th>Password</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Admin</td><td>abhishek.admin@ems.com</td><td>Admin@123</td></tr>
+        <tr><td>Employee</td><td>aarav@ems.com</td><td>Aarav@123</td></tr>
+        <tr><td>Employee</td><td>sana@ems.com</td><td>Sana@123</td></tr>
+        <tr><td>Employee</td><td>vikram@ems.com</td><td>Vikram@123</td></tr>
+        <tr><td>Employee</td><td>neha@ems.com</td><td>Neha@123</td></tr>
+        <tr><td>Employee</td><td>rohan@ems.com</td><td>Rohan@123</td></tr>
+      </tbody>
+    </table>
+
+    <div class="page-break"></div>
+
+    <section class="section">
+      <h2>1. Login Page (Separate Module)</h2>
+      <p>The login screen authenticates users and routes them based on role.</p>
+
+      <h3>Main Features</h3>
+      <ul>
+        <li>Email/password authentication using credentials from <code>ems_users</code>.</li>
+        <li>Client-side form validation (required fields, valid email format, minimum password length).</li>
+        <li>Show/Hide password toggle.</li>
+        <li>Remember Me checkbox (UI only in current implementation).</li>
+        <li>Quick-fill credential buttons for all demo accounts.</li>
+        <li>Error feedback for invalid authentication.</li>
+      </ul>
+
+      <h3>Step-by-Step User Flow</h3>
+      <ol>
+        <li>User opens EMS and sees the login page.</li>
+        <li>User enters email and password (or clicks a demo credential button).</li>
+        <li>User clicks <strong>Login</strong>.</li>
+        <li>System validates inputs (empty fields, invalid email, short password).</li>
+        <li>System checks user in local storage credential list.</li>
+        <li>If invalid: error message is shown.</li>
+        <li>If valid: user profile is saved in <code>ems_current_user</code>.</li>
+        <li>User is redirected automatically:
+          <ul>
+            <li>Admin role -> Admin Dashboard</li>
+            <li>Employee role -> Employee Dashboard</li>
+          </ul>
+        </li>
+      </ol>
+
+      <div class="note">Implementation reference: <code>src/components/Auth/Login.jsx</code>, <code>src/context/AuthContext.jsx</code>, <code>src/App.jsx</code>.</div>
+    </section>
+
+    <div class="page-break"></div>
+
+    <section class="section">
+      <h2>2. Admin Dashboard (Separate Module)</h2>
+      <p>Admin dashboard provides full team, task, assignment, analytics, and report controls.</p>
+
+      <h3>Admin Navigation Areas</h3>
+      <ul>
+        <li>Dashboard</li>
+        <li>Employees</li>
+        <li>Tasks</li>
+        <li>Analytics</li>
+        <li>Reports</li>
+        <li>Settings</li>
+      </ul>
+
+      <h3>Step-by-Step Feature Workflows</h3>
+
+      <h3>A) Create a New Task</h3>
+      <ol>
+        <li>Open Quick Actions -> <strong>Create Task</strong>.</li>
+        <li>Enter title, description, priority, due date, and assignee.</li>
+        <li>Click <strong>Submit Task</strong>.</li>
+        <li>System adds task with status <code>new</code> and updates assigned count for the selected employee.</li>
+        <li>A success notification is added in notification center.</li>
+      </ol>
+
+      <h3>B) Assign/Reassign Task</h3>
+      <ol>
+        <li>Open Quick Actions -> <strong>Assign Task</strong>.</li>
+        <li>Select task and employee.</li>
+        <li>Click <strong>Assign Task</strong>.</li>
+        <li>Task status becomes <code>accepted</code> and assignment is updated.</li>
+        <li>Notification is generated for tracking.</li>
+      </ol>
+
+      <h3>C) Delete Task</h3>
+      <ol>
+        <li>Open Quick Actions -> <strong>Create Task</strong> panel.</li>
+        <li>Switch tab to <strong>Delete Task</strong>.</li>
+        <li>Select task and confirm delete.</li>
+        <li>Task is removed and assigned count is reduced for the original owner.</li>
+      </ol>
+
+      <h3>D) Add Employee</h3>
+      <ol>
+        <li>Open Quick Actions -> <strong>Add Employee</strong>.</li>
+        <li>Keep action on <strong>Add Employee</strong> tab.</li>
+        <li>Enter name, email, and role.</li>
+        <li>Submit form to add employee with default status <code>Active</code>.</li>
+      </ol>
+
+      <h3>E) Remove Employee</h3>
+      <ol>
+        <li>Open Quick Actions -> <strong>Add Employee</strong>.</li>
+        <li>Switch to <strong>Remove Employee</strong>.</li>
+        <li>Select employee and submit removal.</li>
+        <li>System reassigns removed employee tasks to a fallback employee.</li>
+      </ol>
+
+      <h3>F) Toggle Employee Status</h3>
+      <ol>
+        <li>Go to Employee table.</li>
+        <li>Click <strong>Activate/Deactivate</strong> for a user.</li>
+        <li>Status toggles between <code>Active</code> and <code>On Leave</code>.</li>
+      </ol>
+
+      <h3>G) Generate Reports</h3>
+      <ol>
+        <li>Open Quick Actions -> <strong>Generate Report</strong>.</li>
+        <li>Select report type (Daily, Weekly, Task Performance).</li>
+        <li>Download as CSV or PDF.</li>
+        <li>System creates a downloadable file containing report summary lines.</li>
+      </ol>
+
+      <h3>H) Monitor Dashboard & Analytics</h3>
+      <ol>
+        <li>View overview cards: total employees, active tasks, completed, pending, overdue.</li>
+        <li>Use task board and search to inspect filtered tasks.</li>
+        <li>Open analytics for task distribution, weekly productivity, and performance.</li>
+        <li>Track recent activity and upcoming deadlines panels.</li>
+      </ol>
+
+      <div class="note">Implementation reference: <code>src/components/Dashboard/AdminDashboard.jsx</code> + shared components in <code>src/components/other</code>.</div>
+    </section>
+
+    <div class="page-break"></div>
+
+    <section class="section">
+      <h2>3. Employee Dashboard (Separate Module)</h2>
+      <p>Employee dashboard is focused on personal task execution, status updates, and self-service settings.</p>
+
+      <h3>Employee Navigation Areas</h3>
+      <ul>
+        <li>Dashboard</li>
+        <li>Tasks</li>
+        <li>Team</li>
+        <li>Calendar</li>
+        <li>Reports</li>
+        <li>Settings</li>
+      </ul>
+
+      <h3>Step-by-Step Feature Workflows</h3>
+
+      <h3>A) View Personal Task Summary</h3>
+      <ol>
+        <li>Login with employee account.</li>
+        <li>Open Dashboard to see task summary cards.</li>
+        <li>Click any card (New/Accepted/Completed/Failed) to filter tasks instantly.</li>
+        <li>Use <strong>Show All</strong> to clear filters.</li>
+      </ol>
+
+      <h3>B) Update Task Status</h3>
+      <ol>
+        <li>Go to <strong>Tasks</strong> tab.</li>
+        <li>Find assigned task card.</li>
+        <li>Click one of actions: <strong>Accept</strong>, <strong>Complete</strong>, or <strong>Fail</strong>.</li>
+        <li>Task status is updated in global task store.</li>
+        <li>Notification entry is created with user and task status change.</li>
+      </ol>
+
+      <h3>C) Search and Filter Tasks</h3>
+      <ol>
+        <li>Use top search input to filter by task title, description, or priority.</li>
+        <li>Combine search with status filter cards for precise results.</li>
+      </ol>
+
+      <h3>D) Review Team and Deadlines</h3>
+      <ol>
+        <li>Open <strong>Team</strong> tab to see coworker status and performance counts.</li>
+        <li>Open <strong>Calendar</strong> tab to track upcoming task deadlines.</li>
+      </ol>
+
+      <h3>E) View Reports and Analytics</h3>
+      <ol>
+        <li>Open <strong>Reports</strong> tab.</li>
+        <li>View task distribution chart and weekly productivity bars for current user tasks.</li>
+      </ol>
+
+      <h3>F) Manage Personal Settings</h3>
+      <ol>
+        <li>Open <strong>Settings</strong>.</li>
+        <li>Check profile details (name, email, current status).</li>
+        <li>Click <strong>Take Leave</strong> / <strong>Return to Work</strong> to toggle status.</li>
+        <li>Click <strong>Logout</strong> when done.</li>
+      </ol>
+
+      <h3>G) Notifications and Profile Menu</h3>
+      <ol>
+        <li>Use bell icon in header to read notifications.</li>
+        <li>Use profile menu for <strong>View Profile</strong> and <strong>Logout</strong>.</li>
+        <li>Use <strong>Clear</strong> inside notification dropdown to remove all notifications.</li>
+      </ol>
+
+      <div class="note">Implementation reference: <code>src/components/Dashboard/EmployeeDashboard.jsx</code> + shared <code>Header</code>, <code>Sidebar</code>, <code>TaskList</code>, <code>TaskListNumbers</code>, <code>AnalyticsSection</code>.</div>
+    </section>
+
+    <h2>Data & Persistence Notes</h2>
+    <ul>
+      <li>All app data is client-side in browser storage.</li>
+      <li>On first run, seed data is initialized automatically from defaults.</li>
+      <li>No backend/API is required for current project execution.</li>
+    </ul>
+
+    <h2>Run Instructions</h2>
+    <ol>
+      <li>Open project folder <code>EMS</code>.</li>
+      <li>Install dependencies: <code>npm install</code></li>
+      <li>Start development server: <code>npm run dev</code></li>
+      <li>Open the local Vite URL in browser.</li>
+    </ol>
+  </div>
+</body>
+</html>

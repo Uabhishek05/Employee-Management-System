@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import {
   EMPLOYEES_STORAGE_KEY,
   TASKS_STORAGE_KEY,
@@ -8,7 +8,8 @@ import {
   initializeAppData,
 } from '../utlis/localStorage'
 
-const TaskContext = createContext(null)
+const TaskStateContext = createContext(null)
+const TaskActionsContext = createContext(null)
 const NOTIFICATIONS_STORAGE_KEY = 'ems_notifications'
 const defaultNotifications = [
   {
@@ -39,44 +40,45 @@ const persist = (key, value) => {
 }
 
 export const TaskProvider = ({ children }) => {
-  initializeAppData()
-
-  const [tasks, setTasks] = useState(() => getStoredArray(TASKS_STORAGE_KEY, defaultTasks))
+  const [tasks, setTasks] = useState(() => {
+    initializeAppData()
+    return getStoredArray(TASKS_STORAGE_KEY, defaultTasks)
+  })
   const [employees, setEmployees] = useState(() => getStoredArray(EMPLOYEES_STORAGE_KEY, defaultEmployees))
   const [notifications, setNotifications] = useState(() =>
     getStoredArray(NOTIFICATIONS_STORAGE_KEY, defaultNotifications)
   )
 
-  const pushNotification = (message, type = 'info') => {
+  const pushNotification = useCallback((message, type = 'info') => {
     setNotifications((prev) => {
       const next = [createNotification(message, type), ...prev].slice(0, 30)
       persist(NOTIFICATIONS_STORAGE_KEY, next)
       return next
     })
-  }
+  }, [])
 
-  const clearNotifications = () => {
+  const clearNotifications = useCallback(() => {
     setNotifications([])
     persist(NOTIFICATIONS_STORAGE_KEY, [])
-  }
+  }, [])
 
-  const saveTasks = (updater) => {
+  const saveTasks = useCallback((updater) => {
     setTasks((previous) => {
       const next = typeof updater === 'function' ? updater(previous) : updater
       persist(TASKS_STORAGE_KEY, next)
       return next
     })
-  }
+  }, [])
 
-  const saveEmployees = (updater) => {
+  const saveEmployees = useCallback((updater) => {
     setEmployees((previous) => {
       const next = typeof updater === 'function' ? updater(previous) : updater
       persist(EMPLOYEES_STORAGE_KEY, next)
       return next
     })
-  }
+  }, [])
 
-  const addTask = (taskData) => {
+  const addTask = useCallback((taskData) => {
     const task = { id: Date.now(), status: 'new', ...taskData }
     saveTasks((prev) => [task, ...prev])
     saveEmployees((prev) =>
@@ -86,15 +88,15 @@ export const TaskProvider = ({ children }) => {
           : employee
       )
     )
-  }
+  }, [saveEmployees, saveTasks])
 
-  const updateTaskStatus = (taskId, nextStatus) => {
+  const updateTaskStatus = useCallback((taskId, nextStatus) => {
     saveTasks((prev) =>
       prev.map((task) => (task.id === taskId ? { ...task, status: nextStatus } : task))
     )
-  }
+  }, [saveTasks])
 
-  const assignTask = (taskId, employeeId) => {
+  const assignTask = useCallback((taskId, employeeId) => {
     const assignedTo = Number(employeeId)
     saveTasks((prev) =>
       prev.map((task) =>
@@ -110,13 +112,17 @@ export const TaskProvider = ({ children }) => {
           : employee
       )
     )
-  }
+  }, [saveEmployees, saveTasks])
 
-  const deleteTask = (taskId) => {
+  const deleteTask = useCallback((taskId) => {
     const id = Number(taskId)
-    const target = tasks.find((task) => task.id === id)
+    let target = null
+    saveTasks((prev) => {
+      target = prev.find((task) => task.id === id)
+      if (!target) return prev
+      return prev.filter((task) => task.id !== id)
+    })
     if (!target) return
-    saveTasks((prev) => prev.filter((task) => task.id !== id))
     saveEmployees((prev) =>
       prev.map((employee) =>
         employee.id === target.assignedTo
@@ -124,9 +130,9 @@ export const TaskProvider = ({ children }) => {
           : employee
       )
     )
-  }
+  }, [saveEmployees, saveTasks])
 
-  const addEmployee = (employeeData) => {
+  const addEmployee = useCallback((employeeData) => {
     const employee = {
       id: Date.now(),
       assigned: 0,
@@ -135,22 +141,28 @@ export const TaskProvider = ({ children }) => {
       ...employeeData,
     }
     saveEmployees((prev) => [employee, ...prev])
-  }
+  }, [saveEmployees])
 
-  const removeEmployee = (employeeId) => {
+  const removeEmployee = useCallback((employeeId) => {
     const id = Number(employeeId)
-    if (employees.length <= 1) return
-    const fallback = employees.find((entry) => entry.id !== id)
-    if (!fallback) return
-    saveEmployees((prev) => prev.filter((employee) => employee.id !== id))
+    let fallback = null
+    let hasEnoughEmployees = false
+    saveEmployees((prev) => {
+      if (prev.length <= 1) return prev
+      hasEnoughEmployees = true
+      fallback = prev.find((entry) => entry.id !== id)
+      if (!fallback) return prev
+      return prev.filter((employee) => employee.id !== id)
+    })
+    if (!hasEnoughEmployees || !fallback) return
     saveTasks((prev) =>
       prev.map((task) =>
         task.assignedTo === id ? { ...task, assignedTo: fallback.id } : task
       )
     )
-  }
+  }, [saveEmployees, saveTasks])
 
-  const toggleEmployeeStatus = (employeeId) => {
+  const toggleEmployeeStatus = useCallback((employeeId) => {
     const id = Number(employeeId)
     saveEmployees((prev) =>
       prev.map((employee) => {
@@ -161,13 +173,19 @@ export const TaskProvider = ({ children }) => {
         }
       })
     )
-  }
+  }, [saveEmployees])
 
-  const value = useMemo(
+  const stateValue = useMemo(
     () => ({
       tasks,
       employees,
       notifications,
+    }),
+    [employees, notifications, tasks]
+  )
+
+  const actionsValue = useMemo(
+    () => ({
       addTask,
       updateTaskStatus,
       assignTask,
@@ -178,16 +196,47 @@ export const TaskProvider = ({ children }) => {
       pushNotification,
       clearNotifications,
     }),
-    [tasks, employees, notifications]
+    [
+      addEmployee,
+      addTask,
+      assignTask,
+      clearNotifications,
+      deleteTask,
+      pushNotification,
+      removeEmployee,
+      toggleEmployeeStatus,
+      updateTaskStatus,
+    ]
   )
 
-  return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>
+  return (
+    <TaskStateContext.Provider value={stateValue}>
+      <TaskActionsContext.Provider value={actionsValue}>{children}</TaskActionsContext.Provider>
+    </TaskStateContext.Provider>
+  )
 }
 
-export const useTaskData = () => {
-  const context = useContext(TaskContext)
+// eslint-disable-next-line react-refresh/only-export-components
+export const useTaskState = () => {
+  const context = useContext(TaskStateContext)
   if (!context) {
-    throw new Error('useTaskData must be used inside TaskProvider')
+    throw new Error('useTaskState must be used inside TaskProvider')
   }
   return context
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const useTaskActions = () => {
+  const context = useContext(TaskActionsContext)
+  if (!context) {
+    throw new Error('useTaskActions must be used inside TaskProvider')
+  }
+  return context
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const useTaskData = () => {
+  const state = useTaskState()
+  const actions = useTaskActions()
+  return useMemo(() => ({ ...state, ...actions }), [actions, state])
 }

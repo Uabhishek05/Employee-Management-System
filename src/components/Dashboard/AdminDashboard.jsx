@@ -1,13 +1,21 @@
-import React, { useMemo, useState } from 'react'
+import React, { Suspense, lazy, useCallback, useMemo, useState } from 'react'
 import Header from '../other/Header'
 import Sidebar from '../other/Sidebar'
 import QuickActions from '../other/QuickActions'
-import AnalyticsSection from '../other/AnalyticsSection'
 import RecentActivity from '../other/RecentActivity'
 import UpcomingDeadlines from '../other/UpcomingDeadlines'
-import TaskList from '../TaskList/TaskList'
 import { useAuth } from '../../context/AuthContext'
-import { useTaskData } from '../../context/TaskContext'
+import { useTaskActions, useTaskState } from '../../context/TaskContext'
+import {
+  buildTaskDistributionData,
+  filterEmployees,
+  filterTasks,
+  formatUpcomingDeadlines,
+  getTaskCounts,
+} from '../../utils/taskUtils'
+
+const TaskList = lazy(() => import('../TaskList/TaskList'))
+const AnalyticsSection = lazy(() => import('../other/AnalyticsSection'))
 
 const adminActions = [
   { key: 'createTask', label: 'Create Task', accent: 'from-indigo-500 to-blue-500' },
@@ -28,12 +36,36 @@ const adminNavItems = [
 
 const roles = ['Frontend Developer', 'Backend Developer', 'QA Engineer', 'UI/UX Designer', 'DevOps Engineer']
 
+const productivityData = [
+  { day: 'Mon', value: 3 },
+  { day: 'Tue', value: 5 },
+  { day: 'Wed', value: 2 },
+  { day: 'Thu', value: 4 },
+  { day: 'Fri', value: 6 },
+  { day: 'Sat', value: 3 },
+  { day: 'Sun', value: 2 },
+]
+
+const performanceData = [
+  { name: 'Aarav', score: 88 },
+  { name: 'Sana', score: 94 },
+  { name: 'Vikram', score: 72 },
+  { name: 'Neha', score: 81 },
+]
+
+const recentActivity = [
+  { id: 1, title: 'Task assigned', detail: 'Fix payment bug assigned to an employee.', time: '12 min ago' },
+  { id: 2, title: 'Task completed', detail: 'QA smoke test marked as complete.', time: '35 min ago' },
+  { id: 3, title: 'New employee added', detail: 'A new employee joined the team.', time: '1 hr ago' },
+  { id: 4, title: 'Deadline approaching', detail: 'Prepare report due in less than 1 day.', time: '2 hrs ago' },
+]
+
+const lazyFallback = <div className='mt-8 rounded-xl border border-white/15 bg-white/10 p-4 text-sm text-white/80'>Loading section...</div>
+
 const AdminDashboard = () => {
   const { user, logout } = useAuth()
+  const { tasks, employees, notifications } = useTaskState()
   const {
-    tasks,
-    employees,
-    notifications,
     addTask,
     assignTask,
     deleteTask,
@@ -42,7 +74,7 @@ const AdminDashboard = () => {
     toggleEmployeeStatus,
     pushNotification,
     clearNotifications,
-  } = useTaskData()
+  } = useTaskActions()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [activeNav, setActiveNav] = useState('dashboard')
@@ -76,222 +108,238 @@ const AdminDashboard = () => {
 
   const [removeEmployeeId, setRemoveEmployeeId] = useState('')
 
-  const filteredTasks = useMemo(() => {
-    const keyword = searchTerm.trim().toLowerCase()
-    if (!keyword) return tasks
-    return tasks.filter((task) => `${task.title} ${task.description} ${task.priority}`.toLowerCase().includes(keyword))
-  }, [searchTerm, tasks])
+  const filteredTasks = useMemo(
+    () => filterTasks(tasks, { searchTerm }),
+    [searchTerm, tasks]
+  )
 
-  const filteredEmployees = useMemo(() => {
-    const keyword = searchTerm.trim().toLowerCase()
-    if (!keyword) return employees
-    return employees.filter((employee) => `${employee.name} ${employee.role} ${employee.email}`.toLowerCase().includes(keyword))
-  }, [searchTerm, employees])
+  const filteredEmployees = useMemo(
+    () => filterEmployees(employees, searchTerm),
+    [employees, searchTerm]
+  )
 
-  const handleToggleEmployeeStatus = (employeeId) => {
-    toggleEmployeeStatus(employeeId)
-    const target = employees.find((employee) => employee.id === Number(employeeId))
-    if (target) {
-      const next = target.status === 'On Leave' ? 'Active' : 'On Leave'
-      pushNotification(`Admin changed ${target.name} status to ${next}.`, 'warning')
-    }
-  }
+  const taskCounts = useMemo(() => getTaskCounts(tasks), [tasks])
 
-  const handleAssignTaskFromEmployee = (employeeId) => {
-    const firstTaskId = tasks[0]?.id ? String(tasks[0].id) : ''
-    setAssignForm((prev) => ({
-      taskId: prev.taskId || firstTaskId,
-      employeeId: String(employeeId),
-    }))
-    setActivePanel('assignTask')
-  }
+  const overviewCards = useMemo(
+    () => [
+      { label: 'Total Employees', value: employees.length, color: 'bg-violet-400' },
+      { label: 'Active Tasks', value: taskCounts.new + taskCounts.accepted, color: 'bg-blue-400' },
+      { label: 'Completed Tasks', value: taskCounts.completed, color: 'bg-green-400' },
+      { label: 'Pending Tasks', value: taskCounts.new, color: 'bg-amber-400' },
+      { label: 'Overdue Tasks', value: taskCounts.failed, color: 'bg-red-400' },
+    ],
+    [employees.length, taskCounts]
+  )
 
-  const handleOpenProfile = (employee) => {
+  const distributionData = useMemo(
+    () => buildTaskDistributionData(tasks, taskCounts),
+    [taskCounts, tasks]
+  )
+
+  const upcomingDeadlines = useMemo(() => formatUpcomingDeadlines(tasks), [tasks])
+
+  const handleToggleEmployeeStatus = useCallback(
+    (employeeId) => {
+      toggleEmployeeStatus(employeeId)
+      const target = employees.find((employee) => employee.id === Number(employeeId))
+      if (target) {
+        const next = target.status === 'On Leave' ? 'Active' : 'On Leave'
+        pushNotification(`Admin changed ${target.name} status to ${next}.`, 'warning')
+      }
+    },
+    [employees, pushNotification, toggleEmployeeStatus]
+  )
+
+  const handleAssignTaskFromEmployee = useCallback(
+    (employeeId) => {
+      const firstTaskId = tasks[0]?.id ? String(tasks[0].id) : ''
+      setAssignForm((prev) => ({
+        taskId: prev.taskId || firstTaskId,
+        employeeId: String(employeeId),
+      }))
+      setActivePanel('assignTask')
+    },
+    [tasks]
+  )
+
+  const handleOpenProfile = useCallback((employee) => {
     setSelectedProfile(employee)
-  }
+  }, [])
 
-  const handleCreateTask = (event) => {
-    event.preventDefault()
-    if (!newTaskForm.title || !newTaskForm.description || !newTaskForm.date || !newTaskForm.employeeId) return
-    addTask({
-      title: newTaskForm.title,
-      description: newTaskForm.description,
-      priority: newTaskForm.priority,
-      date: newTaskForm.date,
-      assignedTo: Number(newTaskForm.employeeId),
-    })
-    const target = employees.find((employee) => employee.id === Number(newTaskForm.employeeId))
-    if (target) {
-      pushNotification(`Admin created task "${newTaskForm.title}" for ${target.name}.`, 'success')
-    }
-    setNewTaskForm({ title: '', description: '', priority: 'Medium', date: '', employeeId: newTaskForm.employeeId })
-    setActivePanel('')
-  }
+  const closeProfile = useCallback(() => setSelectedProfile(null), [])
+  const openMyProfile = useCallback(() => setShowMyProfileModal(true), [])
+  const closeMyProfile = useCallback(() => setShowMyProfileModal(false), [])
 
-  const handleAssignTask = (event) => {
-    event.preventDefault()
-    if (!assignForm.taskId || !assignForm.employeeId) return
-    assignTask(assignForm.taskId, assignForm.employeeId)
-    const task = tasks.find((entry) => entry.id === Number(assignForm.taskId))
-    const employee = employees.find((entry) => entry.id === Number(assignForm.employeeId))
-    if (task && employee) {
-      pushNotification(`Admin assigned "${task.title}" to ${employee.name}.`, 'info')
-    }
-    setActivePanel('')
-  }
+  const handleCreateTask = useCallback(
+    (event) => {
+      event.preventDefault()
+      if (!newTaskForm.title || !newTaskForm.description || !newTaskForm.date || !newTaskForm.employeeId) return
 
-  const handleDeleteTask = (event) => {
-    event.preventDefault()
-    if (!deleteTaskId) return
-    const task = tasks.find((entry) => entry.id === Number(deleteTaskId))
-    deleteTask(deleteTaskId)
-    if (task) {
-      pushNotification(`Admin deleted task "${task.title}".`, 'warning')
-    }
-    setActivePanel('')
-  }
+      addTask({
+        title: newTaskForm.title,
+        description: newTaskForm.description,
+        priority: newTaskForm.priority,
+        date: newTaskForm.date,
+        assignedTo: Number(newTaskForm.employeeId),
+      })
 
-  const handleAddEmployee = (event) => {
-    event.preventDefault()
-    if (!employeeForm.name || !employeeForm.email || !employeeForm.role) return
-    addEmployee(employeeForm)
-    pushNotification(`Admin added employee ${employeeForm.name}.`, 'success')
-    setEmployeeForm({ name: '', email: '', role: roles[0] })
-    setActivePanel('')
-  }
+      const target = employees.find((employee) => employee.id === Number(newTaskForm.employeeId))
+      if (target) {
+        pushNotification(`Admin created task "${newTaskForm.title}" for ${target.name}.`, 'success')
+      }
 
-  const handleRemoveEmployee = (event) => {
-    event.preventDefault()
-    if (!removeEmployeeId) return
-    const target = employees.find((entry) => entry.id === Number(removeEmployeeId))
-    removeEmployee(removeEmployeeId)
-    if (target) {
-      pushNotification(`Admin removed employee ${target.name}.`, 'warning')
-    }
-    setActivePanel('')
-  }
+      setNewTaskForm({ title: '', description: '', priority: 'Medium', date: '', employeeId: newTaskForm.employeeId })
+      setActivePanel('')
+    },
+    [addTask, employees, newTaskForm, pushNotification]
+  )
 
-  const downloadReport = (format, type) => {
-    const reportLines = [
-      `Report Type: ${type}`,
-      `Generated On: ${new Date().toLocaleString('en-IN')}`,
-      `Total Employees: ${employees.length}`,
-      `Total Tasks: ${tasks.length}`,
-      `Completed Tasks: ${tasks.filter((task) => task.status === 'completed').length}`,
-    ]
-    const content = reportLines.join('\n')
-    const blob = new Blob([content], { type: format === 'csv' ? 'text/csv;charset=utf-8;' : 'application/pdf' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `${type.toLowerCase().replace(/\s+/g, '-')}-report.${format}`
-    anchor.click()
-    URL.revokeObjectURL(url)
-    setReportMessage(`${type} downloaded as ${format.toUpperCase()}.`)
-    pushNotification(`Admin generated ${type} in ${format.toUpperCase()} format.`, 'info')
-  }
+  const handleAssignTask = useCallback(
+    (event) => {
+      event.preventDefault()
+      if (!assignForm.taskId || !assignForm.employeeId) return
 
-  const totalEmployees = employees.length
-  const activeTasks = tasks.filter((task) => task.status === 'new' || task.status === 'accepted').length
-  const completedTasks = tasks.filter((task) => task.status === 'completed').length
-  const pendingTasks = tasks.filter((task) => task.status === 'new').length
-  const overdueTasks = tasks.filter((task) => task.status === 'failed').length
+      assignTask(assignForm.taskId, assignForm.employeeId)
+      const task = tasks.find((entry) => entry.id === Number(assignForm.taskId))
+      const employee = employees.find((entry) => entry.id === Number(assignForm.employeeId))
+      if (task && employee) {
+        pushNotification(`Admin assigned "${task.title}" to ${employee.name}.`, 'info')
+      }
+      setActivePanel('')
+    },
+    [assignForm, assignTask, employees, pushNotification, tasks]
+  )
 
-  const overviewCards = [
-    { label: 'Total Employees', value: totalEmployees, color: 'bg-violet-400' },
-    { label: 'Active Tasks', value: activeTasks, color: 'bg-blue-400' },
-    { label: 'Completed Tasks', value: completedTasks, color: 'bg-green-400' },
-    { label: 'Pending Tasks', value: pendingTasks, color: 'bg-amber-400' },
-    { label: 'Overdue Tasks', value: overdueTasks, color: 'bg-red-400' },
-  ]
+  const handleDeleteTask = useCallback(
+    (event) => {
+      event.preventDefault()
+      if (!deleteTaskId) return
+      const task = tasks.find((entry) => entry.id === Number(deleteTaskId))
+      deleteTask(deleteTaskId)
+      if (task) {
+        pushNotification(`Admin deleted task "${task.title}".`, 'warning')
+      }
+      setActivePanel('')
+    },
+    [deleteTask, deleteTaskId, pushNotification, tasks]
+  )
 
-  const acceptedCount = tasks.filter((task) => task.status === 'accepted').length
-  const distributionData = [
-    { name: 'New', value: pendingTasks, color: '#f87171', percentage: tasks.length ? (pendingTasks / tasks.length) * 100 : 0 },
-    { name: 'Accepted', value: acceptedCount, color: '#60a5fa', percentage: tasks.length ? (acceptedCount / tasks.length) * 100 : 0 },
-    { name: 'Completed', value: completedTasks, color: '#4ade80', percentage: tasks.length ? (completedTasks / tasks.length) * 100 : 0 },
-    { name: 'Failed', value: overdueTasks, color: '#facc15', percentage: tasks.length ? (overdueTasks / tasks.length) * 100 : 0 },
-  ]
+  const handleAddEmployee = useCallback(
+    (event) => {
+      event.preventDefault()
+      if (!employeeForm.name || !employeeForm.email || !employeeForm.role) return
+      addEmployee(employeeForm)
+      pushNotification(`Admin added employee ${employeeForm.name}.`, 'success')
+      setEmployeeForm({ name: '', email: '', role: roles[0] })
+      setActivePanel('')
+    },
+    [addEmployee, employeeForm, pushNotification]
+  )
 
-  const productivityData = [
-    { day: 'Mon', value: 3 },
-    { day: 'Tue', value: 5 },
-    { day: 'Wed', value: 2 },
-    { day: 'Thu', value: 4 },
-    { day: 'Fri', value: 6 },
-    { day: 'Sat', value: 3 },
-    { day: 'Sun', value: 2 },
-  ]
+  const handleRemoveEmployee = useCallback(
+    (event) => {
+      event.preventDefault()
+      if (!removeEmployeeId) return
+      const target = employees.find((entry) => entry.id === Number(removeEmployeeId))
+      removeEmployee(removeEmployeeId)
+      if (target) {
+        pushNotification(`Admin removed employee ${target.name}.`, 'warning')
+      }
+      setActivePanel('')
+    },
+    [employees, pushNotification, removeEmployee, removeEmployeeId]
+  )
 
-  const performanceData = [
-    { name: 'Aarav', score: 88 },
-    { name: 'Sana', score: 94 },
-    { name: 'Vikram', score: 72 },
-    { name: 'Neha', score: 81 },
-  ]
+  const downloadReport = useCallback(
+    (format, type) => {
+      const reportLines = [
+        `Report Type: ${type}`,
+        `Generated On: ${new Date().toLocaleString('en-IN')}`,
+        `Total Employees: ${employees.length}`,
+        `Total Tasks: ${tasks.length}`,
+        `Completed Tasks: ${taskCounts.completed}`,
+      ]
+      const content = reportLines.join('\n')
+      const blob = new Blob([content], { type: format === 'csv' ? 'text/csv;charset=utf-8;' : 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `${type.toLowerCase().replace(/\s+/g, '-')}-report.${format}`
+      anchor.click()
+      URL.revokeObjectURL(url)
+      setReportMessage(`${type} downloaded as ${format.toUpperCase()}.`)
+      pushNotification(`Admin generated ${type} in ${format.toUpperCase()} format.`, 'info')
+    },
+    [employees.length, pushNotification, taskCounts.completed, tasks.length]
+  )
 
-  const recentActivity = [
-    { id: 1, title: 'Task assigned', detail: 'Fix payment bug assigned to an employee.', time: '12 min ago' },
-    { id: 2, title: 'Task completed', detail: 'QA smoke test marked as complete.', time: '35 min ago' },
-    { id: 3, title: 'New employee added', detail: 'A new employee joined the team.', time: '1 hr ago' },
-    { id: 4, title: 'Deadline approaching', detail: 'Prepare report due in less than 1 day.', time: '2 hrs ago' },
-  ]
+  const handleActionClick = useCallback((panelKey) => {
+    setReportMessage('')
+    setActivePanel((previous) => (previous === panelKey ? '' : panelKey))
+  }, [])
 
-  const upcomingDeadlines = [...tasks]
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    .slice(0, 4)
-    .map((task) => ({
-      ...task,
-      date: new Date(task.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-    }))
+  const onTaskFormChange = useCallback((field, value) => {
+    setNewTaskForm((prev) => ({ ...prev, [field]: value }))
+  }, [])
 
-  const renderTeamTable = () => (
-    <div className='overflow-x-auto'>
-      <table className='min-w-full text-left text-sm text-white'>
-        <thead>
-          <tr className='border-b border-white/15 text-white/75'>
-            <th className='px-3 py-2 font-medium'>Name</th>
-            <th className='px-3 py-2 font-medium'>Role</th>
-            <th className='px-3 py-2 font-medium'>Tasks Assigned</th>
-            <th className='px-3 py-2 font-medium'>Tasks Completed</th>
-            <th className='px-3 py-2 font-medium'>Status</th>
-            <th className='px-3 py-2 font-medium'>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredEmployees.map((employee) => (
-            <tr key={employee.id} className='border-b border-white/10 transition-colors duration-300 hover:bg-white/5'>
-              <td className='px-3 py-3 font-medium'>{employee.name}</td>
-              <td className='px-3 py-3 text-white/80'>{employee.role}</td>
-              <td className='px-3 py-3'>{employee.assigned}</td>
-              <td className='px-3 py-3'>{employee.completed}</td>
-              <td className='px-3 py-3'>
-                <span className={`rounded-full px-2 py-1 text-xs ${employee.status === 'Active' ? 'bg-emerald-500/20 text-emerald-200' : employee.status === 'Busy' ? 'bg-amber-500/20 text-amber-200' : 'bg-red-500/20 text-red-200'}`}>
-                  {employee.status}
-                </span>
-              </td>
-              <td className='px-3 py-3'>
-                <div className='flex flex-wrap gap-2'>
-                  <button type='button' onClick={() => handleOpenProfile(employee)} className='rounded-md bg-cyan-500/20 px-2 py-1 text-xs text-cyan-200 transition-colors duration-300 hover:bg-cyan-500/35'>View Profile</button>
-                  <button type='button' onClick={() => handleAssignTaskFromEmployee(employee.id)} className='rounded-md bg-blue-500/20 px-2 py-1 text-xs text-blue-200 transition-colors duration-300 hover:bg-blue-500/35'>Assign Task</button>
-                  <button
-                    type='button'
-                    onClick={() => handleToggleEmployeeStatus(employee.id)}
-                    className={`rounded-md px-2 py-1 text-xs transition-colors duration-300 ${
-                      employee.status === 'On Leave'
-                        ? 'bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/35'
-                        : 'bg-red-500/20 text-red-200 hover:bg-red-500/35'
-                    }`}
-                  >
-                    {employee.status === 'On Leave' ? 'Activate' : 'Deactivate'}
-                  </button>
-                </div>
-              </td>
+  const onAssignFormChange = useCallback((field, value) => {
+    setAssignForm((prev) => ({ ...prev, [field]: value }))
+  }, [])
+
+  const onEmployeeFormChange = useCallback((field, value) => {
+    setEmployeeForm((prev) => ({ ...prev, [field]: value }))
+  }, [])
+
+  const renderTeamTable = useCallback(
+    () => (
+      <div className='overflow-x-auto'>
+        <table className='min-w-full text-left text-sm text-white'>
+          <thead>
+            <tr className='border-b border-white/15 text-white/75'>
+              <th className='px-3 py-2 font-medium'>Name</th>
+              <th className='px-3 py-2 font-medium'>Role</th>
+              <th className='px-3 py-2 font-medium'>Tasks Assigned</th>
+              <th className='px-3 py-2 font-medium'>Tasks Completed</th>
+              <th className='px-3 py-2 font-medium'>Status</th>
+              <th className='px-3 py-2 font-medium'>Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {filteredEmployees.map((employee) => (
+              <tr key={employee.id} className='border-b border-white/10 transition-colors duration-300 hover:bg-white/5'>
+                <td className='px-3 py-3 font-medium'>{employee.name}</td>
+                <td className='px-3 py-3 text-white/80'>{employee.role}</td>
+                <td className='px-3 py-3'>{employee.assigned}</td>
+                <td className='px-3 py-3'>{employee.completed}</td>
+                <td className='px-3 py-3'>
+                  <span className={`rounded-full px-2 py-1 text-xs ${employee.status === 'Active' ? 'bg-emerald-500/20 text-emerald-200' : employee.status === 'Busy' ? 'bg-amber-500/20 text-amber-200' : 'bg-red-500/20 text-red-200'}`}>
+                    {employee.status}
+                  </span>
+                </td>
+                <td className='px-3 py-3'>
+                  <div className='flex flex-wrap gap-2'>
+                    <button type='button' onClick={() => handleOpenProfile(employee)} className='rounded-md bg-cyan-500/20 px-2 py-1 text-xs text-cyan-200 transition-colors duration-300 hover:bg-cyan-500/35'>View Profile</button>
+                    <button type='button' onClick={() => handleAssignTaskFromEmployee(employee.id)} className='rounded-md bg-blue-500/20 px-2 py-1 text-xs text-blue-200 transition-colors duration-300 hover:bg-blue-500/35'>Assign Task</button>
+                    <button
+                      type='button'
+                      onClick={() => handleToggleEmployeeStatus(employee.id)}
+                      className={`rounded-md px-2 py-1 text-xs transition-colors duration-300 ${
+                        employee.status === 'On Leave'
+                          ? 'bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/35'
+                          : 'bg-red-500/20 text-red-200 hover:bg-red-500/35'
+                      }`}
+                    >
+                      {employee.status === 'On Leave' ? 'Activate' : 'Deactivate'}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ),
+    [filteredEmployees, handleAssignTaskFromEmployee, handleOpenProfile, handleToggleEmployeeStatus]
   )
 
   const renderActivePanel = () => {
@@ -307,11 +355,11 @@ const AdminDashboard = () => {
             <form onSubmit={handleCreateTask} className='grid grid-cols-1 gap-4 md:grid-cols-2'>
               <div>
                 <label className='mb-1 block text-sm text-white/85'>Task Title</label>
-                <input value={newTaskForm.title} onChange={(event) => setNewTaskForm((prev) => ({ ...prev, title: event.target.value }))} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300' placeholder='Enter task title' />
+                <input value={newTaskForm.title} onChange={(event) => onTaskFormChange('title', event.target.value)} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300' placeholder='Enter task title' />
               </div>
               <div>
                 <label className='mb-1 block text-sm text-white/85'>Assign Employee</label>
-                <select value={newTaskForm.employeeId} onChange={(event) => setNewTaskForm((prev) => ({ ...prev, employeeId: event.target.value }))} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300'>
+                <select value={newTaskForm.employeeId} onChange={(event) => onTaskFormChange('employeeId', event.target.value)} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300'>
                   <option value='' className='bg-slate-900'>Select employee</option>
                   {employees.map((employee) => (
                     <option key={employee.id} value={employee.id} className='bg-slate-900'>
@@ -322,11 +370,11 @@ const AdminDashboard = () => {
               </div>
               <div className='md:col-span-2'>
                 <label className='mb-1 block text-sm text-white/85'>Description</label>
-                <textarea value={newTaskForm.description} onChange={(event) => setNewTaskForm((prev) => ({ ...prev, description: event.target.value }))} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300' rows={3} placeholder='Enter task description' />
+                <textarea value={newTaskForm.description} onChange={(event) => onTaskFormChange('description', event.target.value)} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300' rows={3} placeholder='Enter task description' />
               </div>
               <div>
                 <label className='mb-1 block text-sm text-white/85'>Priority</label>
-                <select value={newTaskForm.priority} onChange={(event) => setNewTaskForm((prev) => ({ ...prev, priority: event.target.value }))} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300'>
+                <select value={newTaskForm.priority} onChange={(event) => onTaskFormChange('priority', event.target.value)} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300'>
                   <option className='bg-slate-900'>High</option>
                   <option className='bg-slate-900'>Medium</option>
                   <option className='bg-slate-900'>Low</option>
@@ -334,7 +382,7 @@ const AdminDashboard = () => {
               </div>
               <div>
                 <label className='mb-1 block text-sm text-white/85'>Due Date</label>
-                <input type='date' value={newTaskForm.date} onChange={(event) => setNewTaskForm((prev) => ({ ...prev, date: event.target.value }))} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300' />
+                <input type='date' value={newTaskForm.date} onChange={(event) => onTaskFormChange('date', event.target.value)} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300' />
               </div>
               <div className='md:col-span-2'>
                 <button type='submit' className='rounded-lg bg-emerald-500 px-4 py-2 font-medium text-white transition-all duration-300 hover:bg-emerald-400'>Submit Task</button>
@@ -368,7 +416,7 @@ const AdminDashboard = () => {
           <form onSubmit={handleAssignTask} className='grid grid-cols-1 gap-4 md:grid-cols-3'>
             <div>
               <label className='mb-1 block text-sm text-white/85'>Task List</label>
-              <select value={assignForm.taskId} onChange={(event) => setAssignForm((prev) => ({ ...prev, taskId: event.target.value }))} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300'>
+              <select value={assignForm.taskId} onChange={(event) => onAssignFormChange('taskId', event.target.value)} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300'>
                 <option value='' className='bg-slate-900'>Select task</option>
                 {tasks.map((task) => (
                   <option key={task.id} value={task.id} className='bg-slate-900'>
@@ -379,7 +427,7 @@ const AdminDashboard = () => {
             </div>
             <div>
               <label className='mb-1 block text-sm text-white/85'>Employee</label>
-              <select value={assignForm.employeeId} onChange={(event) => setAssignForm((prev) => ({ ...prev, employeeId: event.target.value }))} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300'>
+              <select value={assignForm.employeeId} onChange={(event) => onAssignFormChange('employeeId', event.target.value)} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300'>
                 <option value='' className='bg-slate-900'>Select employee</option>
                 {employees.map((employee) => (
                   <option key={employee.id} value={employee.id} className='bg-slate-900'>
@@ -408,15 +456,15 @@ const AdminDashboard = () => {
             <form onSubmit={handleAddEmployee} className='grid grid-cols-1 gap-4 md:grid-cols-3'>
               <div>
                 <label className='mb-1 block text-sm text-white/85'>Employee Name</label>
-                <input value={employeeForm.name} onChange={(event) => setEmployeeForm((prev) => ({ ...prev, name: event.target.value }))} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300' placeholder='Enter employee name' />
+                <input value={employeeForm.name} onChange={(event) => onEmployeeFormChange('name', event.target.value)} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300' placeholder='Enter employee name' />
               </div>
               <div>
                 <label className='mb-1 block text-sm text-white/85'>Email</label>
-                <input type='email' value={employeeForm.email} onChange={(event) => setEmployeeForm((prev) => ({ ...prev, email: event.target.value }))} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300' placeholder='employee@ems.com' />
+                <input type='email' value={employeeForm.email} onChange={(event) => onEmployeeFormChange('email', event.target.value)} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300' placeholder='employee@ems.com' />
               </div>
               <div>
                 <label className='mb-1 block text-sm text-white/85'>Role</label>
-                <select value={employeeForm.role} onChange={(event) => setEmployeeForm((prev) => ({ ...prev, role: event.target.value }))} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300'>
+                <select value={employeeForm.role} onChange={(event) => onEmployeeFormChange('role', event.target.value)} className='w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-white outline-none focus:border-cyan-300'>
                   {roles.map((role) => (
                     <option key={role} className='bg-slate-900'>{role}</option>
                   ))}
@@ -475,11 +523,6 @@ const AdminDashboard = () => {
     return renderTeamTable()
   }
 
-  const handleActionClick = (panelKey) => {
-    setReportMessage('')
-    setActivePanel((previous) => (previous === panelKey ? '' : panelKey))
-  }
-
   return (
     <div className='dashboard-page-bg'>
       <div className='dashboard-bg-noise' />
@@ -499,7 +542,7 @@ const AdminDashboard = () => {
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
             onLogout={logout}
-            onViewProfile={() => setShowMyProfileModal(true)}
+            onViewProfile={openMyProfile}
             notifications={notifications}
             onClearNotifications={clearNotifications}
             panelLabel='Admin Panel'
@@ -558,25 +601,33 @@ const AdminDashboard = () => {
             </section>
           )}
 
-          {activeNav === 'tasks' && <TaskList tasks={filteredTasks} />}
-
-          {activeNav === 'analytics' && (
-            <AnalyticsSection
-              distributionData={distributionData}
-              productivityData={productivityData}
-              performanceData={performanceData}
-              totalTasks={tasks.length}
-            />
+          {activeNav === 'tasks' && (
+            <Suspense fallback={lazyFallback}>
+              <TaskList tasks={filteredTasks} />
+            </Suspense>
           )}
 
-          {activeNav === 'reports' && (
-            <section className='mt-8 grid grid-cols-1 gap-4 xl:grid-cols-2'>
+          {activeNav === 'analytics' && (
+            <Suspense fallback={lazyFallback}>
               <AnalyticsSection
                 distributionData={distributionData}
                 productivityData={productivityData}
                 performanceData={performanceData}
                 totalTasks={tasks.length}
               />
+            </Suspense>
+          )}
+
+          {activeNav === 'reports' && (
+            <section className='mt-8 grid grid-cols-1 gap-4 xl:grid-cols-2'>
+              <Suspense fallback={lazyFallback}>
+                <AnalyticsSection
+                  distributionData={distributionData}
+                  productivityData={productivityData}
+                  performanceData={performanceData}
+                  totalTasks={tasks.length}
+                />
+              </Suspense>
               <UpcomingDeadlines tasks={upcomingDeadlines} />
             </section>
           )}
@@ -601,7 +652,7 @@ const AdminDashboard = () => {
           <div className='w-full max-w-md rounded-2xl border border-white/20 bg-[#0f172a]/95 p-5 shadow-2xl'>
             <div className='mb-4 flex items-center justify-between'>
               <h3 className='text-lg font-semibold text-white'>Employee Profile</h3>
-              <button type='button' onClick={() => setSelectedProfile(null)} className='rounded-md bg-white/10 px-2 py-1 text-xs text-white hover:bg-white/20'>
+              <button type='button' onClick={closeProfile} className='rounded-md bg-white/10 px-2 py-1 text-xs text-white hover:bg-white/20'>
                 Close
               </button>
             </div>
@@ -616,12 +667,13 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
+
       {showMyProfileModal && (
         <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm'>
           <div className='w-full max-w-md rounded-2xl border border-white/20 bg-[#0f172a]/95 p-5 shadow-2xl'>
             <div className='mb-4 flex items-center justify-between'>
               <h3 className='text-lg font-semibold text-white'>Admin Profile</h3>
-              <button type='button' onClick={() => setShowMyProfileModal(false)} className='rounded-md bg-white/10 px-2 py-1 text-xs text-white hover:bg-white/20'>
+              <button type='button' onClick={closeMyProfile} className='rounded-md bg-white/10 px-2 py-1 text-xs text-white hover:bg-white/20'>
                 Close
               </button>
             </div>
