@@ -1,13 +1,97 @@
 @import "tailwindcss";
 
-*{
+* {
   color: #fff;
+  box-sizing: border-box;
 }
-body{
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
   font-family: 'Inter', sans-serif;
-  @apply bg-gradient-to-br from-gray-900 via-black to-emerald-900;
-
+  background:
+    radial-gradient(120% 90% at 95% 95%, rgba(0, 180, 120, 0.4) 0%, rgba(0, 0, 0, 0) 45%),
+    linear-gradient(135deg, #041532 0%, #000000 50%, #00140e 100%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
 }
 
+.dashboard-page-bg {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(22, 185, 150, 0.22), transparent 35%),
+    radial-gradient(circle at 80% 30%, rgba(83, 130, 255, 0.17), transparent 35%),
+    linear-gradient(135deg, #020617, #040b1e 48%, #010108);
+}
 
+.dashboard-bg-noise {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.35) 1px, transparent 1px);
+  background-size: 3px 3px;
+}
 
+.dashboard-bg-glow-left {
+  position: absolute;
+  left: -4rem;
+  top: 5rem;
+  height: 16rem;
+  width: 16rem;
+  border-radius: 9999px;
+  background: rgba(34, 211, 238, 0.2);
+  filter: blur(48px);
+  pointer-events: none;
+}
+
+.dashboard-bg-glow-right {
+  position: absolute;
+  right: 1rem;
+  top: 6rem;
+  height: 18rem;
+  width: 18rem;
+  border-radius: 9999px;
+  background: rgba(217, 70, 239, 0.1);
+  filter: blur(48px);
+  pointer-events: none;
+}
+
+#tasklist {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+#tasklist::-webkit-scrollbar {
+  display: none;
+}
+
+.summary-card {
+  transform: translateY(0);
+}
+
+.summary-card:hover {
+  transform: translateY(-6px);
+}
+
+.task-card {
+  animation: card-enter 0.45s ease-out both;
+}
+
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
