@@ -22,20 +22,7 @@ const Header = ({
       <div className='flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between'>
         <div>
           <p className='text-xs uppercase tracking-[0.2em] text-emerald-200/80'>{panelLabel}</p>
-          <h1 className='text-2xl font-semibold text-white'>{title}</h1>
-        </div>
-
-        <div className='w-full lg:max-w-xl'>
-          <div className='relative'>
-            <input
-              type='text'
-              value={searchTerm}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder={searchPlaceholder}
-              className='w-full rounded-xl border border-white/15 bg-black/25 px-4 py-2.5 pl-10 text-sm text-white placeholder:text-white/50 outline-none transition-all duration-300 focus:border-cyan-300 focus:ring-2 focus:ring-cyan-400/30'
-            />
-            <span className='pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/70'>⌕</span>
-          </div>
+          <h1 className='text-2xl font-semibold text-white'>{title} 👋</h1>
         </div>
 
         <div className='relative flex items-center justify-end gap-3'>
